@@ -1,4 +1,3 @@
-using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -8,6 +7,14 @@ namespace GameControl
     {
         [SerializeField]
         private GameObject gameBoardPref;
+
+        public static readonly string[] NameLayerSee =
+        {
+            "Color_0", "Color_1", "Color_2", "Color_3", "Color_4"
+        };
+        public static readonly string NameLayerHidden = "Hidden";
+        public static readonly string NameLayerBreakLine = "Break";
+        public static readonly string NameLayerBlank = "Blank";
 
         public static GameBoardControl Instance { get; private set; }
 
@@ -19,6 +26,11 @@ namespace GameControl
             private set => Instance._gameBoardSettings = value;
         }
 
+        public int HiddenLayerMask { get; private set; }
+        public int SeeLayerMask { get; private set; }
+        public int BreakLineLayerMask { get; private set; }
+        public int BlankLayerMask { get; private set; }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -28,23 +40,29 @@ namespace GameControl
             else
             {
                 Instance = this;
+                _gameBoardSettings = GameBoardSettings.GetDefaultSettings();
                 DontDestroyOnLoad(gameObject);
             }
 
             GameStart();
         }
 
-        private void NewGame()
+        public static void NewGame(in GameBoardSettings settings)
         {
             if (Application.CanStreamedLevelBeLoaded("Main"))
             {
+                GameBoardControl.Instance._gameBoardSettings = settings;
                 SceneManager.LoadScene("Main");
             }
         }
 
         private void GameStart()
         {
-            _gameBoardSettings = new GameBoardSettings(16, 10, 3);
+            HiddenLayerMask = LayerMask.GetMask(NameLayerHidden);
+            SeeLayerMask = LayerMask.GetMask(NameLayerSee);
+            BreakLineLayerMask = LayerMask.GetMask(NameLayerBreakLine);
+            BlankLayerMask = LayerMask.GetMask(NameLayerBlank);
+
             GameObject gameBoard =  Instantiate(gameBoardPref);
             gameBoard.GetComponent<Canvas>().worldCamera = Camera.main;
             gameBoard.SetActive(true);

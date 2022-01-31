@@ -1,7 +1,4 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data.Common;
 using GameControl;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,12 +8,12 @@ namespace Board
     public class GameBoardItemController : MonoBehaviour
     {
         [SerializeField]
-        private float findIntervalTime = 1f;
-        [SerializeField]
-        private GameObject itemBlank;
+        private GameObject itemBlankPref;
 
-        public static readonly List<Vector2> AvailableRayDirections = new List<Vector2>()
-            { Vector2.right, Vector2.down, Vector2.left, Vector2.up };
+        public static readonly Vector2[] AvailableRayDirections =
+        {
+            Vector2.right, Vector2.down, Vector2.left, Vector2.up
+        };
 
         public Vector2 WorldPos { get; private set; }
         public Vector2 ItemSize { get; private set; } = Vector2.zero;
@@ -24,7 +21,7 @@ namespace Board
         public BoxCollider2D Collider { get; private set; }
         public Image Image { get; private set; }
         public Button Button { get; private set; }
-        public int Layer { get; private set; }
+        public bool IsDisable { get; set; }
 
         private RectTransform _rectTransform;
 
@@ -34,12 +31,6 @@ namespace Board
             _rectTransform = GetComponent<RectTransform>();
             Button = GetComponent<Button>();
             Image = GetComponent<Image>();
-            Layer = LayerMask.GetMask(LayerMask.LayerToName(gameObject.layer));
-        }
-
-        private void Start()
-        {
-            // InvokeRepeating(nameof(FindIdenticalGameBoardItems), 0f, findIntervalTime);
         }
 
         private void Update()
@@ -56,87 +47,144 @@ namespace Board
         public void FindAndBreakRelatedItems()
         {
             List<GameBoardItemController> relatedItems = new List<GameBoardItemController> { this };
-            GetRelatedItems(ref relatedItems, this);
+            int layer = gameObject.layer;
+            string layerName = LayerMask.LayerToName(layer);
+            int layerMask = LayerMask.GetMask(layerName);
+
+            GetRelatedItems(ref relatedItems, this, layerMask);
             if (relatedItems.Count < 3)
                 return;
 
-            SetUpItems(relatedItems, false);
-            // ExcludeXAxis(relatedItems);
-            ExecuteFall(relatedItems);
-            Debug.Log("DESTROY THIS");
-        }
-
-        private void ExcludeXAxis(in List<GameBoardItemController> items)
-        {
-            for (int i = 0; i < items.Count - 1; i++)
+            foreach (GameBoardItemController i in relatedItems)
             {
-                if (items[i].WorldPos.x == items[i + 1].WorldPos.x)
-                    items.Remove(items[i]);
+                i.IsDisable = true;
             }
+
+            ExecuteFall(relatedItems);
         }
 
         private void ExecuteFall(in List<GameBoardItemController> items)
         {
-            for (int i = 0; i < items.Count; i++)
+            List<GameBoardItemBlankController> blanks = new List<GameBoardItemBlankController>();
+
+            foreach (GameBoardItemController i in items)
             {
-                List<GameBoardItemController> upperItems = GetUpperItems(items[i]);
-                for (int j = 0; j < upperItems.Count; j++)
+                List<GameBoardItemController> itemsFromXAxis = GetAllItemsFromXAxis(i);
+                foreach (GameBoardItemController j in itemsFromXAxis)
                 {
-                    GameObject blank = Instantiate(itemBlank, upperItems[j].WorldPos, Quaternion.identity);
-                    GameBoardItemBlankController blankController = blank.GetComponent<GameBoardItemBlankController>();
-                    blankController.SpriteColor = upperItems[j].Image.color;
-                    blankController.Size = upperItems[j].ScaleItemSize;
-                    // blankController.TargetItem = i;
+                    if (j.IsDisable)
+                    {
+                        ConfigureItem(j, false);
+                        continue;
+                    }
+
+                    GameObject b = Instantiate(itemBlankPref, j.WorldPos, Quaternion.identity);
+                    GameBoardItemBlankController bController = b.GetComponent<GameBoardItemBlankController>();
+                    bController.Layer = j.gameObject.layer;
+                    bController.Size = j.ScaleItemSize;
+                    bController.SpriteColor = j.Image.color;
+                    blanks.Add(bController);
+
+                    ConfigureItem(j, false);
                 }
-                SetUpItems(upperItems, false);
-            }
-        }
-
-        private List<GameBoardItemController> GetUpperItems(GameBoardItemController item)
-        {
-            List<GameBoardItemController> upperItems = new List<GameBoardItemController>();
-            Vector2 upDir = Vector2.up;
-            RaycastHit2D[] hitsUp = Physics2D.RaycastAll(item.WorldPos, upDir);
-            foreach (RaycastHit2D hit in hitsUp)
-            {
-                GameBoardItemController itemController =
-                    hit.collider.gameObject.GetComponent<GameBoardItemController>();
-                upperItems.Add(itemController);
             }
 
-            return upperItems;
-        }
-
-        private void SetUpItems(in List<GameBoardItemController> items, in bool enable)
-        {
-            foreach (GameBoardItemController item in items)
+            foreach (GameBoardItemBlankController b in blanks)
             {
-                item.Collider.enabled = enable;
-                item.Button.interactable = false;
-                if (!enable)
-                    item.Image.color = new Color(0f, 0f, 0f, 0f);
+                b.gameObject.SetActive(true);
             }
+
+            GameBoardScoreController.Instance.Score = items.Count;
         }
 
-        private void GetRelatedItems(ref List<GameBoardItemController> relatedItems, in GameBoardItemController item)
+        private bool ExitMoreDisabled(in GameBoardItemController item, in Vector2 dir)
         {
-            List<Vector2> directions = GameBoardItemController.AvailableRayDirections;
-            for (int i = 1; i <= directions.Count; i++)
+            int seeLayerMask = GameBoardControl.Instance.SeeLayerMask;
+            RaycastHit2D[] hits = Physics2D.RaycastAll(item.WorldPos, dir, Mathf.Infinity, seeLayerMask);
+            foreach (RaycastHit2D h in hits)
             {
-                Vector2 dir = directions[i - 1];
-                float distance = i % 2 == 1 ? item.ScaleItemSize.x : item.ScaleItemSize.y;
-                RaycastHit2D hit = Physics2D.Raycast(item.WorldPos, dir, distance, item.Layer);
-
-                if (hit.collider == null)
+                GameObject i = h.collider.gameObject;
+                GameBoardItemController iController = i.GetComponent<GameBoardItemController>();
+                if (iController.Equals(item))
                     continue;
 
-                GameObject anotherItem = hit.collider.gameObject;
-                GameBoardItemController anotherItemController = anotherItem.GetComponent<GameBoardItemController>();
-                if (relatedItems.Contains(anotherItemController))
+                if (iController.IsDisable)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private List<GameBoardItemController> GetAllItemsFromXAxis(in GameBoardItemController item)
+        {
+            List<GameBoardItemController> items = new List<GameBoardItemController>();
+            int seeLayerMask = GameBoardControl.Instance.SeeLayerMask;
+
+            Vector2 dir = GameBoardItemController.AvailableRayDirections[1]; // Down dir
+            RaycastHit2D[] hits = Physics2D.RaycastAll(item.WorldPos, dir, Mathf.Infinity, seeLayerMask);
+            foreach (RaycastHit2D h in hits)
+            {
+                GameObject i = h.collider.gameObject;
+
+                GameBoardItemController iController = i.GetComponent<GameBoardItemController>();
+                if (iController.Equals(item))
                     continue;
 
-                relatedItems.Add(anotherItemController);
-                GetRelatedItems(ref relatedItems, anotherItemController);
+                if (iController.IsDisable)
+                    items.Add(iController);
+
+                if (ExitMoreDisabled(iController, dir))
+                {
+                    if (!iController.IsDisable)
+                        items.Add(iController);
+                }
+                else break;
+            }
+
+            items.Add(item); // Middle item
+
+            dir = GameBoardItemController.AvailableRayDirections[3]; // Up dir
+            hits = Physics2D.RaycastAll(item.WorldPos, dir, Mathf.Infinity, seeLayerMask);
+            foreach (RaycastHit2D h in hits)
+            {
+                GameObject i = h.collider.gameObject;
+                GameBoardItemController iController = i.GetComponent<GameBoardItemController>();
+                if (iController.Equals(item))
+                    continue;
+
+                items.Add(iController);
+            }
+
+            return items;
+        }
+
+        private void ConfigureItem(in GameBoardItemController item, in bool enable)
+        {
+            item.gameObject.layer = LayerMask.NameToLayer(GameBoardControl.NameLayerHidden);
+            item.Button.interactable = enable;
+            if (!enable)
+                item.Image.color = new Color(0f, 0f, 0f, 0f);
+        }
+
+        private void GetRelatedItems(ref List<GameBoardItemController> relatedItems, in GameBoardItemController item, in int layerMask)
+        {
+            Vector2[] dirs = GameBoardItemController.AvailableRayDirections;
+            for (int i = 1; i <= dirs.Length; i++)
+            {
+                Vector2 dir = dirs[i - 1];
+                float dist = i % 2 == 1 ? item.ScaleItemSize.x : item.ScaleItemSize.y;
+                RaycastHit2D[] hit = Physics2D.RaycastAll(item.WorldPos, dir, dist, layerMask);
+
+                if (hit.Length < 2)
+                    continue;
+
+                GameObject rItem = hit[1].collider.gameObject;
+                GameBoardItemController rIController = rItem.GetComponent<GameBoardItemController>();
+                if (relatedItems.Contains(rIController))
+                    continue;
+
+                relatedItems.Add(rIController);
+                GetRelatedItems(ref relatedItems, rIController, layerMask);
             }
         }
 

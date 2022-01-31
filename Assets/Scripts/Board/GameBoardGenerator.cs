@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using GameControl;
 using UnityEngine;
 using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
 namespace Board
 {
@@ -19,15 +20,24 @@ namespace Board
         private int spacing;
         [SerializeField]
         private Color[] availableColors;
+        [SerializeField]
+        private BoxCollider2D breakLine;
 
         private GameBoardSettings _settings;
         private Color[] _selectedColors;
+        private RectTransform _transform;
 
         private void Awake()
         {
             _settings = GameBoardControl.Instance.GameBoardSettings;
+            _transform = GetComponent<RectTransform>();
             IdentifyColors();
             FillGameBoard();
+        }
+
+        private void Update()
+        {
+            breakLine.size = new Vector2(_transform.rect.size.x, 1f);
         }
 
         private void FillGameBoard()
@@ -52,7 +62,6 @@ namespace Board
                     itemImage.color = _selectedColors[selectedColor];
                     item.layer = LayerMask.NameToLayer("Color_" + selectedColor);
                     item.SetActive(true);
-                    // item.layer = LayerMask.NameToLayer("Color_" + 1);
                 }
             }
         }
@@ -77,7 +86,6 @@ namespace Board
 
                 _selectedColors[i] = availableColors[selectedColorNum];
             }
-            
         }
 
     }
