@@ -2603,10 +2603,10 @@ MonoBehaviour:
   gameBoardVerticalRow: {fileID: 4512641574681789730}
   gameBoardItem: {fileID: 7692397102616877309, guid: 00d4b337769e77f47a80d88ff0d743c5, type: 3}
   padding:
-    m_Left: 10
-    m_Right: 10
-    m_Top: 10
-    m_Bottom: 10
+    m_Left: 4
+    m_Right: 4
+    m_Top: 4
+    m_Bottom: 4
   spacing: 4
   availableColors:
   - {r: 0, g: 1, b: 0.203542, a: 1}

@@ -23,6 +23,9 @@ namespace Board
         public Vector3 Size { get; set; }
         public bool IsInvocable { get; set; }
 
+        private static int _hiddenLayerMask;
+        private static int _blankLayerMask;
+
         private Vector2 _currentPos;
         private Vector2 _targetPos;
         private GameBoardItemController _targetItem;
@@ -35,73 +38,67 @@ namespace Board
             _spriteRend = GetComponent<SpriteRenderer>();
             _transform.localScale = Size;
             _spriteRend.color = SpriteColor;
+            _hiddenLayerMask = GameBoardControl.Instance.HiddenLayerMask;
+            _blankLayerMask = GameBoardControl.Instance.BlankLayerMask;
         }
 
         private void Update()
         {
-            _currentPos = _transform.position;
-            Vector2 moveTo = _targetItem == null
-                ? new Vector2(_currentPos.x, _currentPos.y - Size.y)
-                : _targetPos;
-            _transform.position = Vector2.MoveTowards(_currentPos, moveTo, fallingSpeed * Time.deltaTime);
+            Fall();
+        }
 
-            Debug.DrawLine(_currentPos, moveTo, Color.white);
-            if (NeedFindStopPoint())
+        private void Fall()
+        {
+            _currentPos = _transform.position;
+
+            if (_targetItem == null || IsInvocable)
             {
-                SetStopPoint();
+                RaycastHit2D[] hitHidden = Physics2D.RaycastAll(_currentPos, Vector2.down, Mathf.Infinity, _hiddenLayerMask);
+
+                int countHidden = hitHidden.Length;
+                if (countHidden >= 2)
+                {
+                    _targetPos = hitHidden[1].transform.position;
+                    _targetItem = null;
+                    IsInvocable = false;
+                }
+                else if (countHidden == 1)
+                {
+                    GameObject i = hitHidden[0].collider.gameObject;
+                    TargetItem = i.GetComponent<GameBoardItemController>();
+                    i.layer = Layer;
+                    CallOthers();
+                }
             }
 
             if (_currentPos == _targetPos)
-            {
-                _targetItem.Image.color = SpriteColor;
-                _targetItem.Collider.enabled = true;
-                _targetItem.Button.interactable = true;
-                _targetItem.IsDisable = false;
-                _targetItem.gameObject.layer = Layer;
+                Stop();
 
+            _transform.position = Vector2.MoveTowards(_currentPos, _targetPos, fallingSpeed * Time.deltaTime);
+        }
+
+        private void Stop()
+        {
+            if (_targetItem is null)
+            {
                 Destroy(gameObject);
-            }
-        }
-
-        public void SetStopPoint()
-        {
-            int hiddenLayerMask = GameBoardControl.Instance.HiddenLayerMask;
-            RaycastHit2D[] hitHidden = Physics2D.RaycastAll(_currentPos, Vector2.down, 0.01f, hiddenLayerMask);
-
-            if (hitHidden.Length != 0)
-            {
-                GameObject i = hitHidden[0].collider.gameObject;
-                TargetItem = i.GetComponent<GameBoardItemController>();
-                InvokeStop();
-            }
-        }
-
-        private bool NeedFindStopPoint()
-        {
-            int seeLayerMask = GameBoardControl.Instance.SeeLayerMask;
-            int breakLineLayerMask = GameBoardControl.Instance.BreakLineLayerMask;
-            RaycastHit2D[] hitSee = Physics2D.RaycastAll(_currentPos, Vector2.down , Size.y, seeLayerMask + breakLineLayerMask);
-            
-            if (hitSee.Length == 0)
-            {
-                _targetItem = null;
-                _targetPos = Vector2.zero;
-                return false;
+                return;
             }
 
-            return true;
+            _targetItem.Image.color = SpriteColor;
+            _targetItem.Button.interactable = true;
+            _targetItem.IsDisable = false;
+
+            Destroy(gameObject);
         }
 
-        private void InvokeStop()
+        private void CallOthers()
         {
-            int blankLayerMask = GameBoardControl.Instance.BlankLayerMask;
-            RaycastHit2D[] hitBlank = Physics2D.RaycastAll(_currentPos, Vector2.up, Size.y, blankLayerMask);
-            for (int i = 1; i < hitBlank.Length; i++)
+            RaycastHit2D[] hitBlank = Physics2D.RaycastAll(_currentPos, Vector2.up, Mathf.Infinity, _blankLayerMask);
+            foreach (RaycastHit2D h in hitBlank)
             {
-                GameObject b = hitBlank[i].collider.gameObject;
-                GameBoardItemBlankController bController = b.GetComponent<GameBoardItemBlankController>();
-                bController.IsInvocable = true;
-                bController.SetStopPoint();
+                GameBoardItemBlankController b = h.collider.gameObject.GetComponent<GameBoardItemBlankController>();
+                b.IsInvocable = true;
             }
         }
 
