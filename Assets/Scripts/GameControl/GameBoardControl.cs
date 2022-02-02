@@ -47,6 +47,14 @@ namespace GameControl
             GameStart();
         }
 
+        private void Update()
+        {
+            if (Input.GetKeyDown("space"))
+            {
+                NewGame(_gameBoardSettings);
+            }
+        }
+
         public static void NewGame(in GameBoardSettings settings)
         {
             if (Application.CanStreamedLevelBeLoaded("Main"))

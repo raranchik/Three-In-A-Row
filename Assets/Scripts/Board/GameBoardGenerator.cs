@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GameControl;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -22,10 +23,18 @@ namespace Board
         private Color[] availableColors;
         [SerializeField]
         private BoxCollider2D breakLine;
+        [SerializeField]
+        private GameObject messagePanel;
+        [SerializeField]
+        private TextMeshProUGUI messagePanelText;
+        [SerializeField, TextArea] 
+        private string gameOverMessageTemplate = "Ходы закончились. Ваш счёт {0}. Поздравляем!";
 
+        private List<GameBoardItemController> _gameBoardItems = new List<GameBoardItemController>();
         private GameBoardSettings _settings;
         private Color[] _selectedColors;
         private RectTransform _transform;
+        private bool _scanning = false;
 
         private void Awake()
         {
@@ -33,6 +42,11 @@ namespace Board
             _transform = GetComponent<RectTransform>();
             IdentifyColors();
             FillGameBoard();
+        }
+
+        private void Start()
+        {
+            InvokeRepeating(nameof(ScanGameBoard), 5f, 1.5f);
         }
 
         private void Update()
@@ -62,6 +76,7 @@ namespace Board
                     itemImage.color = _selectedColors[selectedColor];
                     item.layer = LayerMask.NameToLayer("Color_" + selectedColor);
                     item.SetActive(true);
+                    _gameBoardItems.Add(item.GetComponent<GameBoardItemController>());
                 }
             }
         }
@@ -86,6 +101,50 @@ namespace Board
 
                 _selectedColors[i] = availableColors[selectedColorNum];
             }
+        }
+
+        private void ScanGameBoard()
+        {
+            if (_scanning)
+                return;
+            if (_gameBoardItems.Count == 0)
+                return;
+
+            _scanning = true;
+
+            List<GameBoardItemController> scannedItems = new List<GameBoardItemController>();
+            foreach (GameBoardItemController i in _gameBoardItems)
+            {
+                if (scannedItems.Contains(i))
+                    continue;
+
+                GameBoardItemController.GetItemLayerMask(i, out int iLayerMask);
+                if (iLayerMask == GameBoardControl.Instance.HiddenLayerMask)
+                    continue;
+
+                scannedItems.Add(i);
+                List<GameBoardItemController> relatedItems = new List<GameBoardItemController>() { i };
+                GameBoardItemController.GetRelatedItems(ref relatedItems, i, iLayerMask);
+
+                if (relatedItems.Count < 3)
+                {
+                    continue;
+                }
+                else
+                {
+                    _scanning = false;
+                    return;
+                }
+            }
+
+            GameOver();
+        }
+
+        private void GameOver()
+        {
+            messagePanelText.text = string.Format(gameOverMessageTemplate, GameBoardScoreController.Instance.Score);
+            CancelInvoke(nameof(ScanGameBoard));
+            messagePanel.SetActive(true);
         }
 
     }

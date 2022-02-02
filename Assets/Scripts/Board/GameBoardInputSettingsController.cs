@@ -18,7 +18,11 @@ namespace Board
         [SerializeField]
         private TextMeshProUGUI messagePanelText;
         [SerializeField, TextArea] 
-        private string validFailMessageTemplate;
+        private string validFailMessageTemplate =
+            "Введённые данные некорректны.\n" +
+            "Ширина от {0} до {1}.\n" +
+            "Высота от {2} до {3}.\n" +
+            "Цвета от {4} до {5}.";
 
         private int _x;
         private int _y;

@@ -6,29 +6,19 @@ namespace Board
     public class GameBoardItemBlankController : MonoBehaviour
     {
         [SerializeField]
-        private float fallingSpeed = 3f;
-
-        public GameBoardItemController TargetItem
-        {
-            get => _targetItem;
-            private set
-            {
-                _targetItem = value;
-                _targetPos = value.WorldPos;
-            }
-        }
+        private float fallingSpeed = 15f;
 
         public int Layer { get; set; }
         public Color SpriteColor { get; set; }
         public Vector3 Size { get; set; }
-        public bool IsInvocable { get; set; }
+        protected bool IsInvocable { get; set; }
+        protected Vector2 TargetPos { get; set; }
+        protected GameBoardItemController TargetItem { get; set; }
 
         private static int _hiddenLayerMask;
         private static int _blankLayerMask;
 
         private Vector2 _currentPos;
-        private Vector2 _targetPos;
-        private GameBoardItemController _targetItem;
         private SpriteRenderer _spriteRend;
         private Transform _transform;
 
@@ -51,43 +41,39 @@ namespace Board
         {
             _currentPos = _transform.position;
 
-            if (_targetItem == null || IsInvocable)
+            if (TargetItem == null && !IsInvocable)
             {
                 RaycastHit2D[] hitHidden = Physics2D.RaycastAll(_currentPos, Vector2.down, Mathf.Infinity, _hiddenLayerMask);
-
                 int countHidden = hitHidden.Length;
-                if (countHidden >= 2)
+                if (countHidden > 1)
                 {
-                    _targetPos = hitHidden[1].transform.position;
-                    _targetItem = null;
-                    IsInvocable = false;
+                    TargetPos = hitHidden[1].transform.position;
                 }
                 else if (countHidden == 1)
                 {
-                    GameObject i = hitHidden[0].collider.gameObject;
-                    TargetItem = i.GetComponent<GameBoardItemController>();
-                    i.layer = Layer;
+                    RaycastHit2D h = hitHidden[0];
+                    TargetItem = h.collider.GetComponent<GameBoardItemController>();
+                    TargetItem.gameObject.layer = Layer;
+                    TargetPos = h.transform.position;
                     CallOthers();
                 }
             }
 
-            if (_currentPos == _targetPos)
+            if (_currentPos == TargetPos && TargetItem != null)
                 Stop();
+            else if (_currentPos == TargetPos && IsInvocable)
+            {
+                IsInvocable = false;
+            }
 
-            _transform.position = Vector2.MoveTowards(_currentPos, _targetPos, fallingSpeed * Time.deltaTime);
+            _transform.position = Vector2.MoveTowards(_currentPos, TargetPos, fallingSpeed * Time.deltaTime);
         }
 
         private void Stop()
         {
-            if (_targetItem is null)
-            {
-                Destroy(gameObject);
-                return;
-            }
-
-            _targetItem.Image.color = SpriteColor;
-            _targetItem.Button.interactable = true;
-            _targetItem.IsDisable = false;
+            TargetItem.Image.color = SpriteColor;
+            TargetItem.Button.interactable = true;
+            TargetItem.IsDisable = false;
 
             Destroy(gameObject);
         }
@@ -95,9 +81,14 @@ namespace Board
         private void CallOthers()
         {
             RaycastHit2D[] hitBlank = Physics2D.RaycastAll(_currentPos, Vector2.up, Mathf.Infinity, _blankLayerMask);
-            foreach (RaycastHit2D h in hitBlank)
+            if (hitBlank.Length < 2)
+                return;
+
+            RaycastHit2D[] hitHidden = Physics2D.RaycastAll(_currentPos, Vector2.up, Mathf.Infinity, _hiddenLayerMask);
+            for (int i = 1; i < hitBlank.Length; i++)
             {
-                GameBoardItemBlankController b = h.collider.gameObject.GetComponent<GameBoardItemBlankController>();
+                GameBoardItemBlankController b = hitBlank[i].collider.GetComponent<GameBoardItemBlankController>();
+                b.TargetPos = hitHidden[i - 1].transform.position;
                 b.IsInvocable = true;
             }
         }

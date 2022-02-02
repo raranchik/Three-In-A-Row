@@ -30,6 +30,7 @@ namespace Board
         private void Awake()
         {
             Instance = this;
+            Instance.Score = 0;
         }
 
     }
